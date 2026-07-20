@@ -35,7 +35,7 @@ resource "azurerm_databricks_workspace" "this" {
   managed_resource_group_name = "rg-databricks-managed-dev"
 
   custom_parameters {
-    virtual_network_id = module.spoke_network.virtual_network_id
+    virtual_network_id = module.spoke_network.vnet_id
 
     public_subnet_name  = module.spoke_network.public_subnet_name
     private_subnet_name = module.spoke_network.private_subnet_name

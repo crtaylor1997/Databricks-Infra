@@ -12,25 +12,30 @@ Implement CI/CD using Azure DevOps Pipelines
 Explore Azure networking concepts including Hub-and-Spoke architecture, VNet Injection, Private Link, and Private DNS
 Keep all infrastructure disposable to minimize Azure costs
 Current Architecture
-                     Azure Subscription
-                             │
-                ┌────────────────────────┐
-                │ Terraform State        │
-                │ rg-tfstate             │
-                │ Storage Account        │
-                └──────────┬─────────────┘
-                           │
-                    Terraform Backend
-                           │
-        ┌──────────────────┴──────────────────┐
-        │                                     │
-   Hub Network (planned)             Databricks Spoke
-        │                            DEV Environment
-        │
-   Shared Services
-
+                         Azure Subscription
+                                │
+                 ┌─────────────────────────────┐
+                 │ Terraform Remote State      │
+                 │ rg-tfstate                  │
+                 │ Azure Storage / tfstate     │
+                 └──────────────┬──────────────┘
+                                │
+             ┌──────────────────┼──────────────────────┐
+             │                  │                      │
+      network.tfstate      dev.tfstate     network-additions-dev.tfstate
+             │                  │                      │
+     ┌───────▼────────┐  ┌─────▼────────────┐  ┌─────▼──────────────┐
+     │ Shared Hub     │  │ Databricks DEV   │  │ Cross-Network      │
+     │                │  │ Spoke            │  │ Resources          │
+     │ Hub VNet       │  │                  │  │                    │
+     │ Shared subnet │  │ Spoke VNet       │  │ Hub → DEV peering  │
+     │ PE subnet     │  │ Public subnet    │  │ DEV → Hub peering  │
+     │ Private DNS   │  │ Private subnet   │  │ DEV DNS zone link  │
+     │ Route table   │  │ NSG associations│  └────────────────────┘
+     └───────────────┘  │ Databricks       │
+                        │ Workspace         │
+                        └───────────────────┘
    
-Repository Structure
 modules/
     tags/
     hub_network/
@@ -38,13 +43,28 @@ modules/
     databricks_workspace/
 
 network/
+    backend.hcl
+    main.tf
+    outputs.tf
+    providers.tf
 
 databricks/
     dev/
+        main.tf
+        outputs.tf
+        providers.tf
     uat/
     prd/
 
+network-additions/
+    dev/
+        backend.hcl
+        main.tf
+        outputs.tf
+        providers.tf
+
 .azuredevops/
+
 Terraform Modules
 tags
 
@@ -90,7 +110,7 @@ databricks/uat	UAT environment
 databricks/prd	Production environment
 CI/CD (Planned)
 
-Azure DevOps Pipelines will provide:
+GitHub Actions will provide:
 
 Terraform Format Validation
 Terraform Validation
@@ -134,3 +154,31 @@ Network Security Groups
 Private Endpoints
 Hub-and-Spoke Networking
 Compute Resources
+
+Completed
+
+- Terraform remote state in Azure Storage
+- Standardized resource tagging
+- Shared hub VNet
+- Shared-services subnet
+- Private-endpoints subnet
+- Shared-services route table
+- Azure Databricks Private DNS zone
+- Databricks dev spoke VNet
+- VNet-injected Azure Databricks workspace
+- Hub-to-dev VNet peering
+- Dev-to-hub VNet peering
+- Private DNS link to the dev spoke
+- Independent Terraform state files
+
+Next
+
+- Github validation and plan pipelines
+- Databricks workspace module refactor
+- Github actions apply stages and approvals
+- Private Endpoint architecture
+- Azure Key Vault integration
+- Databricks provider configuration
+- Unity Catalog
+- Databricks Asset Bundles
+- UAT and production deployments
