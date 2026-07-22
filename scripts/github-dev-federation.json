@@ -1,0 +1,9 @@
+{
+  "name": "github-dev",
+  "issuer": "https://token.actions.githubusercontent.com",
+  "subject": "repo:christianriantaylor/Databricks-Infra:environment:dev",
+  "description": "GitHub Actions access for DEV",
+  "audiences": [
+    "api://AzureADTokenExchange"
+  ]
+}

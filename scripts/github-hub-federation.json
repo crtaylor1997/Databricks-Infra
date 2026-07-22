@@ -1,0 +1,9 @@
+{
+  "name": "github-hub",
+  "issuer": "https://token.actions.githubusercontent.com",
+  "subject": "repo:christianriantaylor/Databricks-Infra:environment:hub",
+  "description": "GitHub Actions access for the shared hub",
+  "audiences": [
+    "api://AzureADTokenExchange"
+  ]
+}
