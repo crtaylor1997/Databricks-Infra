@@ -1,0 +1,45 @@
+name: Terraform Checks
+
+on:
+  pull_request:
+    branches:
+      - development
+      - main
+
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  terraform-check:
+    name: Format and validate
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Check formatting
+        run: terraform fmt -check -recursive
+
+      - name: Validate hub
+        working-directory: network
+        run: |
+          terraform init -backend=false
+          terraform validate
+
+      - name: Validate Databricks DEV
+        working-directory: databricks/dev
+        run: |
+          terraform init -backend=false
+          terraform validate
+
+      - name: Validate DEV network additions
+        working-directory: network-additions/dev
+        run: |
+          terraform init -backend=false
+          terraform validate
