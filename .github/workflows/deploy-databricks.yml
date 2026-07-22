@@ -1,0 +1,44 @@
+name: Deploy Databricks Environments
+
+on:
+  push:
+    branches:
+      - development
+      - main
+    paths:
+      - "databricks/**"
+      - "network-additions/**"
+      - "modules/databricks_spoke_network/**"
+      - "modules/databricks_workspace/**"
+      - "modules/tags/**"
+      - ".github/workflows/deploy-databricks.yml"
+      - ".github/workflows/reusable-terraform.yml"
+
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  deploy-dev:
+    name: Deploy DEV
+    if: github.ref == 'refs/heads/development'
+    uses: ./.github/workflows/reusable-terraform.yml
+    with:
+      environment: dev
+      working_directory: databricks/dev
+      backend_key: dev.tfstate
+      apply: true
+
+  deploy-dev-network-additions:
+    name: Deploy DEV network additions
+    if: github.ref == 'refs/heads/development'
+    needs:
+      - deploy-dev
+    uses: ./.github/workflows/reusable-terraform.yml
+    with:
+      environment: dev
+      working_directory: network-additions/dev
+      backend_key: network-additions-dev.tfstate
+      apply: true
