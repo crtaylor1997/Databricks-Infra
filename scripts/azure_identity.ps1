@@ -18,6 +18,8 @@ $ServicePrincipalObjectId = az ad sp show `
   --query id `
   -o tsv
 
+
+
   az role assignment create `
   --assignee-object-id $ServicePrincipalObjectId `
   --assignee-principal-type ServicePrincipal `
@@ -47,3 +49,7 @@ az ad app federated-credential create `
 az ad app federated-credential create `
   --id $AppId `
   --parameters github-hub-federation.json
+
+  az ad app federated-credential create `
+  --id $AppId `
+  --parameters github-dev-federation.json

@@ -1,7 +1,7 @@
 {
   "name": "github-uat",
   "issuer": "https://token.actions.githubusercontent.com",
-  "subject": "repo:christianriantaylor/Databricks-Infra:environment:uat",
+  "subject": "repo:crtaylor1997/Databricks-Infra:environment:uat",
   "description": "GitHub Actions access for UAT",
   "audiences": [
     "api://AzureADTokenExchange"
