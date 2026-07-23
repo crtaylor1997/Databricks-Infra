@@ -42,3 +42,27 @@ jobs:
       working_directory: network-additions/dev
       backend_key: network-additions-dev.tfstate
       apply: true
+
+  deploy-uat:
+    name: Deploy UAT
+    if: github.ref == 'refs/heads/development'
+    needs:
+      - deploy-dev-network-additions
+    uses: ./.github/workflows/reusable-terraform.yml
+    with:
+      environment: uat
+      working_directory: databricks/uat
+      backend_key: uat.tfstate
+      apply: true
+
+  deploy-uat-network-additions:
+    name: Deploy UAT network additions
+    if: github.ref == 'refs/heads/development'
+    needs:
+      - deploy-uat
+    uses: ./.github/workflows/reusable-terraform.yml
+    with:
+      environment: uat
+      working_directory: network-additions/uat
+      backend_key: network-additions-uat.tfstate
+      apply: true

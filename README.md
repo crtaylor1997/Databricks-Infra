@@ -1,184 +1,352 @@
-Azure Databricks Infrastructure POC
-Overview
+# Azure Databricks Infrastructure POC
 
-This repository is a proof of concept (POC) for deploying and managing Azure Databricks infrastructure using Terraform and Azure DevOps.
+## Overview
 
-The primary goals are to:
+This repository is a proof of concept for deploying and managing Azure Databricks infrastructure using Terraform and GitHub Actions.
 
-Learn enterprise Terraform patterns
-Build a reusable Azure Databricks deployment framework
-Implement Infrastructure as Code (IaC) using Terraform modules
-Implement CI/CD using Azure DevOps Pipelines
-Explore Azure networking concepts including Hub-and-Spoke architecture, VNet Injection, Private Link, and Private DNS
-Keep all infrastructure disposable to minimize Azure costs
-Current Architecture
-                         Azure Subscription
-                                │
-                 ┌─────────────────────────────┐
-                 │ Terraform Remote State      │
-                 │ rg-tfstate                  │
-                 │ Azure Storage / tfstate     │
-                 └──────────────┬──────────────┘
-                                │
-             ┌──────────────────┼──────────────────────┐
-             │                  │                      │
-      network.tfstate      dev.tfstate     network-additions-dev.tfstate
-             │                  │                      │
-     ┌───────▼────────┐  ┌─────▼────────────┐  ┌─────▼──────────────┐
-     │ Shared Hub     │  │ Databricks DEV   │  │ Cross-Network      │
-     │                │  │ Spoke            │  │ Resources          │
-     │ Hub VNet       │  │                  │  │                    │
-     │ Shared subnet │  │ Spoke VNet       │  │ Hub → DEV peering  │
-     │ PE subnet     │  │ Public subnet    │  │ DEV → Hub peering  │
-     │ Private DNS   │  │ Private subnet   │  │ DEV DNS zone link  │
-     │ Route table   │  │ NSG associations│  └────────────────────┘
-     └───────────────┘  │ Databricks       │
-                        │ Workspace         │
-                        └───────────────────┘
-   
-modules/
-    tags/
-    hub_network/
-    databricks_spoke_network/
-    databricks_workspace/
+The project is designed to demonstrate enterprise-style Infrastructure as Code patterns while keeping Azure resources disposable and inexpensive to operate.
 
-network/
-    backend.hcl
-    main.tf
-    outputs.tf
-    providers.tf
+## Goals
 
-databricks/
-    dev/
-        main.tf
-        outputs.tf
-        providers.tf
-    uat/
-    prd/
+* Learn enterprise Terraform patterns
+* Build a reusable Azure Databricks deployment framework
+* Implement Infrastructure as Code using reusable Terraform modules
+* Implement CI/CD using GitHub Actions
+* Explore Azure hub-and-spoke networking
+* Configure Azure Databricks VNet injection
+* Explore Private Link and Private DNS
+* Maintain independent Terraform state files
+* Keep test infrastructure disposable to minimize Azure costs
 
-network-additions/
-    dev/
-        backend.hcl
-        main.tf
-        outputs.tf
-        providers.tf
+## Current Architecture
 
-.azuredevops/
+```mermaid
+flowchart TB
+    SUB[Azure Subscription]
 
-Terraform Modules
-tags
+    STATE["Terraform Remote State<br/>Resource Group: rg-tfstate<br/>Azure Storage Container: tfstate"]
 
-Provides standardized tags applied to all Azure resources.
+    HUBSTATE["network.tfstate"]
+    DEVSTATE["dev.tfstate"]
+    UATSTATE["uat.tfstate"]
+    DEVNETSTATE["network-additions-dev.tfstate"]
+    UATNETSTATE["network-additions-uat.tfstate"]
 
-hub_network
+    HUB["Shared Hub Network<br/><br/>Hub VNet<br/>Shared Services Subnet<br/>Private Endpoints Subnet<br/>Private DNS Zone<br/>Route Table"]
 
-Creates shared networking resources including:
+    DEV["Databricks DEV<br/><br/>Spoke VNet<br/>Public Databricks Subnet<br/>Private Databricks Subnet<br/>NSG Associations<br/>Databricks Workspace"]
 
-Hub VNet
-Shared Services subnet
-Private Endpoint subnet
-(Future)
-Azure Firewall
-Bastion
-Private DNS
-Route Tables
-databricks_spoke_network
+    UAT["Databricks UAT<br/><br/>Spoke VNet<br/>Public Databricks Subnet<br/>Private Databricks Subnet<br/>NSG Associations<br/>Databricks Workspace"]
 
-Creates:
+    DEVNET["DEV Cross-Network Resources<br/><br/>Hub to DEV Peering<br/>DEV to Hub Peering<br/>DEV Private DNS Link"]
 
-Resource Group
-Spoke VNet
-Databricks Public Subnet
-Databricks Private Subnet
-Network Security Group
-Subnet Associations
-databricks_workspace
+    UATNET["UAT Cross-Network Resources<br/><br/>Hub to UAT Peering<br/>UAT to Hub Peering<br/>UAT Private DNS Link"]
 
-Creates:
+    SUB --> STATE
 
-Azure Databricks Workspace
-VNet Injection
-Workspace configuration
-Deployment Strategy
+    STATE --> HUBSTATE
+    STATE --> DEVSTATE
+    STATE --> UATSTATE
+    STATE --> DEVNETSTATE
+    STATE --> UATNETSTATE
 
-Each deployment is managed by its own Terraform root module and state file.
+    HUBSTATE --> HUB
+    DEVSTATE --> DEV
+    UATSTATE --> UAT
+    DEVNETSTATE --> DEVNET
+    UATNETSTATE --> UATNET
 
-Root Module	Purpose
-network	Shared networking resources
-databricks/dev	Development environment
-databricks/uat	UAT environment
-databricks/prd	Production environment
-CI/CD (Planned)
+    HUB --- DEVNET
+    DEV --- DEVNET
 
-GitHub Actions will provide:
+    HUB --- UATNET
+    UAT --- UATNET
+```
 
-Terraform Format Validation
-Terraform Validation
-Terraform Plan
-Terraform Apply
-Manual Production Approval
-Notebook Deployment
-Cluster Configuration Deployment
-Job Deployment
-Future Enhancements
-Hub-and-Spoke Networking
-VNet Peering
-Azure Firewall
-Route Tables
-Private Link
-Private DNS Zones
-Unity Catalog
-Cluster Policies
-Databricks Asset Bundles
-Notebook CI/CD
-Compute Configuration CI/CD
-Secret Management with Azure Key Vault
-Monitoring and Logging
-Cost Management
+## Repository Structure
+
+```text
+Databricks-Infra/
+├── .github/
+│   └── workflows/
+│       ├── reusable-terraform.yml
+│       ├── deploy-hub.yml
+│       └── deploy-databricks.yml
+│
+├── modules/
+│   ├── tags/
+│   ├── hub_network/
+│   ├── databricks_spoke_network/
+│   └── databricks_workspace/
+│
+├── network/
+│   ├── backend.hcl
+│   ├── main.tf
+│   ├── outputs.tf
+│   └── providers.tf
+│
+├── databricks/
+│   ├── dev/
+│   │   ├── backend.hcl
+│   │   ├── main.tf
+│   │   ├── outputs.tf
+│   │   └── providers.tf
+│   │
+│   ├── uat/
+│   │   ├── backend.hcl
+│   │   ├── main.tf
+│   │   ├── outputs.tf
+│   │   └── providers.tf
+│   │
+│   └── prd/
+│
+└── network-additions/
+    ├── dev/
+    │   ├── backend.hcl
+    │   ├── main.tf
+    │   ├── outputs.tf
+    │   └── providers.tf
+    │
+    └── uat/
+        ├── backend.hcl
+        ├── main.tf
+        ├── outputs.tf
+        └── providers.tf
+```
+
+## Terraform Modules
+
+### `tags`
+
+Provides standardized tags for Azure resources.
+
+Example tags include:
+
+* Environment
+* Owner
+* Project
+* Managed by Terraform
+* Cost-control designation
+
+### `hub_network`
+
+Creates shared network infrastructure, including:
+
+* Hub virtual network
+* Shared-services subnet
+* Private-endpoints subnet
+* Azure Databricks Private DNS zone
+* Private DNS link to the hub VNet
+* Shared-services route table
+
+Planned additions include:
+
+* Azure Firewall
+* Azure Bastion
+* Additional route tables
+* Centralized outbound traffic routing
+
+### `databricks_spoke_network`
+
+Creates environment-specific Databricks networking resources, including:
+
+* Resource group
+* Spoke virtual network
+* Databricks public subnet
+* Databricks private subnet
+* Network security group
+* Subnet delegations
+* Subnet and NSG associations
+
+The Databricks public and private subnets are both dedicated to the Azure Databricks workspace. The public subnet name does not necessarily mean that resources receive public IP addresses.
+
+### `databricks_workspace`
+
+Creates and configures an Azure Databricks workspace, including:
+
+* Premium Azure Databricks workspace
+* Managed resource group
+* VNet injection
+* Public and private subnet association
+* No-public-IP workspace configuration
+* Standardized resource tags
+
+## Deployment Strategy
+
+Each infrastructure layer is managed as an independent Terraform root module with its own remote state file.
+
+| Root module             | Purpose                            | State file                      |
+| ----------------------- | ---------------------------------- | ------------------------------- |
+| `network`               | Shared hub networking resources    | `network.tfstate`               |
+| `databricks/dev`        | Development Databricks environment | `dev.tfstate`                   |
+| `network-additions/dev` | DEV peering and Private DNS link   | `network-additions-dev.tfstate` |
+| `databricks/uat`        | UAT Databricks environment         | `uat.tfstate`                   |
+| `network-additions/uat` | UAT peering and Private DNS link   | `network-additions-uat.tfstate` |
+| `databricks/prd`        | Future production environment      | `prd.tfstate`                   |
+
+Separating the state files reduces the blast radius of changes and allows infrastructure layers to be deployed independently.
+
+## Deployment Order
+
+Resources must be created in dependency order.
+
+```text
+1. network
+2. databricks/dev
+3. network-additions/dev
+4. databricks/uat
+5. network-additions/uat
+```
+
+Resources should be destroyed in reverse order.
+
+```text
+1. network-additions/uat
+2. databricks/uat
+3. network-additions/dev
+4. databricks/dev
+5. network
+```
+
+Cross-network resources must be destroyed before their parent VNets and Private DNS zones. Otherwise, Azure may prevent deletion because nested VNet links or peering resources still exist.
+
+## CI/CD with GitHub Actions
+
+GitHub Actions is used to validate, plan, and deploy Terraform infrastructure.
+
+The intended workflow includes:
+
+* Terraform formatting checks
+* Terraform initialization
+* Terraform validation
+* Terraform plans
+* Terraform applies
+* Azure authentication using OpenID Connect
+* Separate GitHub environments for DEV, UAT, PRD, and the hub
+* Manual environment approvals
+* Branch-based deployment controls
+* Reusable Terraform workflows
+
+### Branch Strategy
+
+The current deployment model is:
+
+* Merges to `development` deploy DEV
+* UAT deployment follows DEV and can require manual approval
+* Merges to `main` deploy production infrastructure
+* Shared hub infrastructure is managed by a separate workflow
+
+### GitHub Environments
+
+The repository uses GitHub Environments such as:
+
+```text
+hub
+dev
+uat
+prd
+```
+
+These environments support:
+
+* Required reviewers
+* Deployment protection rules
+* Environment-specific variables
+* Environment-specific secrets
+* Azure OIDC federated identity subjects
+
+Example Azure federated identity subject:
+
+```text
+repo:crtaylor1997/Databricks-Infra:environment:uat
+```
+
+## Cost Management
 
 This project is designed to be disposable.
 
-Infrastructure is deployed only for testing and destroyed afterward.
+Infrastructure is deployed for testing and destroyed when it is no longer needed.
 
-Permanent resources:
+### Permanent Resources
 
-Terraform backend resource group
-Terraform state storage account
-Terraform state container
+The following resources remain deployed:
 
-Temporary resources:
+* Terraform backend resource group
+* Terraform state storage account
+* Terraform state container
 
-Databricks Workspaces
-VNets
-Network Security Groups
-Private Endpoints
-Hub-and-Spoke Networking
-Compute Resources
+### Temporary Resources
 
-Completed
+The following resources may be destroyed after testing:
 
-- Terraform remote state in Azure Storage
-- Standardized resource tagging
-- Shared hub VNet
-- Shared-services subnet
-- Private-endpoints subnet
-- Shared-services route table
-- Azure Databricks Private DNS zone
-- Databricks dev spoke VNet
-- VNet-injected Azure Databricks workspace
-- Hub-to-dev VNet peering
-- Dev-to-hub VNet peering
-- Private DNS link to the dev spoke
-- Independent Terraform state files
+* Azure Databricks workspaces
+* Databricks managed resource groups
+* Hub and spoke VNets
+* Databricks subnets
+* Network security groups
+* Route tables
+* VNet peerings
+* Private DNS VNet links
+* Private endpoints
+* Databricks compute resources
 
-Next
+## Completed
 
-- Github validation and plan pipelines
-- Databricks workspace module refactor
-- Github actions apply stages and approvals
-- Private Endpoint architecture
-- Azure Key Vault integration
-- Databricks provider configuration
-- Unity Catalog
-- Databricks Asset Bundles
-- UAT and production deployments
+* Terraform remote state in Azure Storage
+* Standardized resource tagging
+* Shared hub VNet
+* Shared-services subnet
+* Private-endpoints subnet
+* Shared-services route table
+* Azure Databricks Private DNS zone
+* Databricks DEV spoke VNet
+* Databricks DEV workspace
+* Hub-to-DEV VNet peering
+* DEV-to-hub VNet peering
+* Private DNS link to the DEV spoke
+* Databricks UAT spoke VNet
+* Databricks UAT workspace
+* Hub-to-UAT VNet peering
+* UAT-to-hub VNet peering
+* Private DNS link to the UAT spoke
+* Independent Terraform state files
+* Azure OIDC configuration for GitHub Actions
+* Reusable GitHub Actions Terraform workflow
+* DEV and UAT deployment workflow structure
+
+## Next Steps
+
+* Complete GitHub Actions validation and plan workflows
+* Add approval protection to the UAT GitHub Environment
+* Add production Databricks and networking roots
+* Refactor remaining workspace configuration into the reusable workspace module
+* Add Azure Firewall or NAT Gateway outbound routing
+* Add spoke route tables
+* Implement Private Endpoint architecture
+* Integrate Azure Key Vault
+* Configure the Databricks Terraform provider
+* Implement Unity Catalog
+* Add Databricks cluster policies
+* Add Databricks Asset Bundles
+* Add notebook CI/CD
+* Add job deployment
+* Add compute configuration CI/CD
+* Add monitoring and diagnostic settings
+
+## Future Architecture Enhancements
+
+Planned enhancements include:
+
+* Production Databricks environment
+* Azure Firewall
+* Centralized outbound traffic routing
+* User-defined routes
+* Private Link
+* Private Databricks workspace access
+* Azure Key Vault integration
+* Unity Catalog
+* Cluster policies
+* Databricks Asset Bundles
+* Notebook deployment pipelines
+* Databricks job deployment
+* Centralized monitoring and logging
