@@ -238,6 +238,23 @@ Resources should be destroyed in reverse order.
 
 Cross-network resources must be destroyed before their parent VNets and Private DNS zones. Otherwise, Azure may prevent deletion because nested VNet links or peering resources still exist.
 
+### Destroying everything
+
+`.github/workflows/destroy-databricks.yml` tears down every environment and the shared hub. It only runs manually:
+
+1. Go to **Actions → Destroy Databricks Environments → Run workflow**
+2. Type `destroy-all` in the confirmation box (any other value stops the run before anything is destroyed)
+
+DEV, UAT and PRD are destroyed in parallel. Each removes its network additions first, then its Databricks resources. The hub is destroyed last, and only if all three environments were destroyed successfully.
+
+```text
+confirm ─┬─ network-additions/dev → databricks/dev ─┐
+         ├─ network-additions/uat → databricks/uat ─┼─→ network (hub)
+         └─ network-additions/prd → databricks/prd ─┘
+```
+
+Approval rules on the `prd` and `hub` GitHub Environments still apply. The Terraform state resource group and storage account are not managed by Terraform and are kept.
+
 ## CI/CD with GitHub Actions
 
 GitHub Actions is used to validate, plan, and deploy Terraform infrastructure.
