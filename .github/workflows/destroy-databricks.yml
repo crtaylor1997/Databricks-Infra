@@ -1,0 +1,117 @@
+name: Destroy Databricks Environments
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: "Type destroy-all to destroy DEV, UAT, PRD and the shared hub"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  confirm:
+    name: Confirm destroy
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check confirmation text
+        env:
+          CONFIRM: ${{ inputs.confirm }}
+        run: |
+          if [ "$CONFIRM" != "destroy-all" ]; then
+            echo "::error::Confirmation text did not match 'destroy-all'. Nothing was destroyed."
+            exit 1
+          fi
+
+  # DEV
+  destroy-dev-network-additions:
+    name: Destroy DEV network additions
+    needs:
+      - confirm
+    uses: ./.github/workflows/reusable-terraform.yml
+    with:
+      environment: dev
+      working_directory: network-additions/dev
+      backend_key: network-additions-dev.tfstate
+      apply: true
+      destroy: true
+
+  destroy-dev:
+    name: Destroy DEV
+    needs:
+      - destroy-dev-network-additions
+    uses: ./.github/workflows/reusable-terraform.yml
+    with:
+      environment: dev
+      working_directory: databricks/dev
+      backend_key: dev.tfstate
+      apply: true
+      destroy: true
+
+  # UAT
+  destroy-uat-network-additions:
+    name: Destroy UAT network additions
+    needs:
+      - confirm
+    uses: ./.github/workflows/reusable-terraform.yml
+    with:
+      environment: uat
+      working_directory: network-additions/uat
+      backend_key: network-additions-uat.tfstate
+      apply: true
+      destroy: true
+
+  destroy-uat:
+    name: Destroy UAT
+    needs:
+      - destroy-uat-network-additions
+    uses: ./.github/workflows/reusable-terraform.yml
+    with:
+      environment: uat
+      working_directory: databricks/uat
+      backend_key: uat.tfstate
+      apply: true
+      destroy: true
+
+  # PRD
+  destroy-prd-network-additions:
+    name: Destroy PRD network additions
+    needs:
+      - confirm
+    uses: ./.github/workflows/reusable-terraform.yml
+    with:
+      environment: prd
+      working_directory: network-additions/prd
+      backend_key: network-additions-prd.tfstate
+      apply: true
+      destroy: true
+
+  destroy-prd:
+    name: Destroy PRD
+    needs:
+      - destroy-prd-network-additions
+    uses: ./.github/workflows/reusable-terraform.yml
+    with:
+      environment: prd
+      working_directory: databricks/prd
+      backend_key: prd.tfstate
+      apply: true
+      destroy: true
+
+  # Hub runs last, only if every environment was destroyed successfully
+  destroy-hub:
+    name: Destroy shared hub
+    needs:
+      - destroy-dev
+      - destroy-uat
+      - destroy-prd
+    uses: ./.github/workflows/reusable-terraform.yml
+    with:
+      environment: hub
+      working_directory: network
+      backend_key: network.tfstate
+      apply: true
+      destroy: true
