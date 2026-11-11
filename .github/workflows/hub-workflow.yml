@@ -8,7 +8,7 @@ on:
       - "network/**"
       - "modules/hub_network/**"
       - "modules/tags/**"
-      - ".github/workflows/deploy-hub.yml"
+      - ".github/workflows/hub-workflow.yml"
       - ".github/workflows/reusable-terraform.yml"
 
   workflow_dispatch:

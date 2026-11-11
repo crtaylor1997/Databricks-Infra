@@ -83,7 +83,7 @@ Databricks-Infra/
 ├── .github/
 │   └── workflows/
 │       ├── reusable-terraform.yml
-│       ├── deploy-hub.yml
+│       ├── hub-workflow.yml
 │       └── deploy-databricks.yml
 │
 ├── modules/
@@ -262,7 +262,8 @@ The current deployment model is:
 * Merges to `development` deploy DEV
 * UAT deployment follows DEV and can require manual approval
 * Merges to `main` deploy PRD (`databricks/prd`, then `network-additions/prd`), gated by required reviewers on the `prd` GitHub Environment
-* Shared hub infrastructure is managed by a separate workflow
+* Merges to `development` deploy the shared hub first, then DEV and UAT
+* Merges to `main` that touch hub files deploy the shared hub through `hub-workflow.yml`
 
 ### GitHub Environments
 
