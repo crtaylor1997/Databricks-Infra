@@ -6,6 +6,8 @@ on:
       - development
       - main
     paths:
+      - "network/**"
+      - "modules/hub_network/**"
       - "databricks/**"
       - "network-additions/**"
       - "modules/databricks_spoke_network/**"
@@ -21,9 +23,21 @@ permissions:
   id-token: write
 
 jobs:
+  deploy-hub:
+    name: Deploy shared hub
+    if: github.ref == 'refs/heads/development'
+    uses: ./.github/workflows/reusable-terraform.yml
+    with:
+      environment: hub
+      working_directory: network
+      backend_key: network.tfstate
+      apply: true
+
   deploy-dev:
     name: Deploy DEV
     if: github.ref == 'refs/heads/development'
+    needs:
+      - deploy-hub
     uses: ./.github/workflows/reusable-terraform.yml
     with:
       environment: dev
