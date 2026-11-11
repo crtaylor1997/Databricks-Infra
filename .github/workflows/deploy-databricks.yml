@@ -6,6 +6,8 @@ on:
       - development
       - main
     paths:
+      - "network/**"
+      - "modules/hub_network/**"
       - "databricks/**"
       - "network-additions/**"
       - "modules/databricks_spoke_network/**"
@@ -21,9 +23,21 @@ permissions:
   id-token: write
 
 jobs:
+  deploy-hub:
+    name: Deploy shared hub
+    if: github.ref == 'refs/heads/development'
+    uses: ./.github/workflows/reusable-terraform.yml
+    with:
+      environment: hub
+      working_directory: network
+      backend_key: network.tfstate
+      apply: true
+
   deploy-dev:
     name: Deploy DEV
     if: github.ref == 'refs/heads/development'
+    needs:
+      - deploy-hub
     uses: ./.github/workflows/reusable-terraform.yml
     with:
       environment: dev
@@ -65,4 +79,26 @@ jobs:
       environment: uat
       working_directory: network-additions/uat
       backend_key: network-additions-uat.tfstate
+      apply: true
+
+  deploy-prd:
+    name: Deploy PRD
+    if: github.ref == 'refs/heads/main'
+    uses: ./.github/workflows/reusable-terraform.yml
+    with:
+      environment: prd
+      working_directory: databricks/prd
+      backend_key: prd.tfstate
+      apply: true
+
+  deploy-prd-network-additions:
+    name: Deploy PRD network additions
+    if: github.ref == 'refs/heads/main'
+    needs:
+      - deploy-prd
+    uses: ./.github/workflows/reusable-terraform.yml
+    with:
+      environment: prd
+      working_directory: network-additions/prd
+      backend_key: network-additions-prd.tfstate
       apply: true

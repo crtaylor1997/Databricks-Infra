@@ -31,6 +31,8 @@ flowchart TB
     UATSTATE["uat.tfstate"]
     DEVNETSTATE["network-additions-dev.tfstate"]
     UATNETSTATE["network-additions-uat.tfstate"]
+    PRDSTATE["prd.tfstate"]
+    PRDNETSTATE["network-additions-prd.tfstate"]
 
     HUB["Shared Hub Network<br/><br/>Hub VNet<br/>Shared Services Subnet<br/>Private Endpoints Subnet<br/>Private DNS Zone<br/>Route Table"]
 
@@ -42,6 +44,10 @@ flowchart TB
 
     UATNET["UAT Cross-Network Resources<br/><br/>Hub to UAT Peering<br/>UAT to Hub Peering<br/>UAT Private DNS Link"]
 
+    PRD["Databricks PRD<br/><br/>Spoke VNet<br/>Public Databricks Subnet<br/>Private Databricks Subnet<br/>NSG Associations<br/>Databricks Workspace"]
+
+    PRDNET["PRD Cross-Network Resources<br/><br/>Hub to PRD Peering<br/>PRD to Hub Peering<br/>PRD Private DNS Link"]
+
     SUB --> STATE
 
     STATE --> HUBSTATE
@@ -49,18 +55,25 @@ flowchart TB
     STATE --> UATSTATE
     STATE --> DEVNETSTATE
     STATE --> UATNETSTATE
+    STATE --> PRDSTATE
+    STATE --> PRDNETSTATE
 
     HUBSTATE --> HUB
     DEVSTATE --> DEV
     UATSTATE --> UAT
+    PRDSTATE --> PRD
     DEVNETSTATE --> DEVNET
     UATNETSTATE --> UATNET
+    PRDNETSTATE --> PRDNET
 
     HUB --- DEVNET
     DEV --- DEVNET
 
     HUB --- UATNET
     UAT --- UATNET
+
+    HUB --- PRDNET
+    PRD --- PRDNET
 ```
 
 ## Repository Structure
@@ -70,7 +83,7 @@ Databricks-Infra/
 ├── .github/
 │   └── workflows/
 │       ├── reusable-terraform.yml
-│       ├── deploy-hub.yml
+│       ├── hub-workflow.yml
 │       └── deploy-databricks.yml
 │
 ├── modules/
@@ -99,6 +112,10 @@ Databricks-Infra/
 │   │   └── providers.tf
 │   │
 │   └── prd/
+│       ├── backend.hcl
+│       ├── main.tf
+│       ├── outputs.tf
+│       └── providers.tf
 │
 └── network-additions/
     ├── dev/
@@ -107,7 +124,13 @@ Databricks-Infra/
     │   ├── outputs.tf
     │   └── providers.tf
     │
-    └── uat/
+    ├── uat/
+    │   ├── backend.hcl
+    │   ├── main.tf
+    │   ├── outputs.tf
+    │   └── providers.tf
+    │
+    └── prd/
         ├── backend.hcl
         ├── main.tf
         ├── outputs.tf
@@ -182,7 +205,8 @@ Each infrastructure layer is managed as an independent Terraform root module wit
 | `network-additions/dev` | DEV peering and Private DNS link   | `network-additions-dev.tfstate` |
 | `databricks/uat`        | UAT Databricks environment         | `uat.tfstate`                   |
 | `network-additions/uat` | UAT peering and Private DNS link   | `network-additions-uat.tfstate` |
-| `databricks/prd`        | Future production environment      | `prd.tfstate`                   |
+| `databricks/prd`        | Production Databricks environment  | `prd.tfstate`                   |
+| `network-additions/prd` | PRD peering and Private DNS link   | `network-additions-prd.tfstate` |
 
 Separating the state files reduces the blast radius of changes and allows infrastructure layers to be deployed independently.
 
@@ -196,19 +220,40 @@ Resources must be created in dependency order.
 3. network-additions/dev
 4. databricks/uat
 5. network-additions/uat
+6. databricks/prd
+7. network-additions/prd
 ```
 
 Resources should be destroyed in reverse order.
 
 ```text
-1. network-additions/uat
-2. databricks/uat
-3. network-additions/dev
-4. databricks/dev
-5. network
+1. network-additions/prd
+2. databricks/prd
+3. network-additions/uat
+4. databricks/uat
+5. network-additions/dev
+6. databricks/dev
+7. network
 ```
 
 Cross-network resources must be destroyed before their parent VNets and Private DNS zones. Otherwise, Azure may prevent deletion because nested VNet links or peering resources still exist.
+
+### Destroying everything
+
+`.github/workflows/destroy-databricks.yml` tears down every environment and the shared hub. It only runs manually:
+
+1. Go to **Actions → Destroy Databricks Environments → Run workflow**
+2. Type `destroy-all` in the confirmation box (any other value stops the run before anything is destroyed)
+
+DEV, UAT and PRD are destroyed in parallel. Each removes its network additions first, then its Databricks resources. The hub is destroyed last, and only if all three environments were destroyed successfully.
+
+```text
+confirm ─┬─ network-additions/dev → databricks/dev ─┐
+         ├─ network-additions/uat → databricks/uat ─┼─→ network (hub)
+         └─ network-additions/prd → databricks/prd ─┘
+```
+
+Approval rules on the `prd` and `hub` GitHub Environments still apply. The Terraform state resource group and storage account are not managed by Terraform and are kept.
 
 ## CI/CD with GitHub Actions
 
@@ -233,8 +278,9 @@ The current deployment model is:
 
 * Merges to `development` deploy DEV
 * UAT deployment follows DEV and can require manual approval
-* Merges to `main` deploy production infrastructure
-* Shared hub infrastructure is managed by a separate workflow
+* Merges to `main` deploy PRD (`databricks/prd`, then `network-additions/prd`), gated by required reviewers on the `prd` GitHub Environment
+* Merges to `development` deploy the shared hub first, then DEV and UAT
+* Merges to `main` that touch hub files deploy the shared hub through `hub-workflow.yml`
 
 ### GitHub Environments
 
@@ -255,10 +301,11 @@ These environments support:
 * Environment-specific secrets
 * Azure OIDC federated identity subjects
 
-Example Azure federated identity subject:
+Example Azure federated identity subjects:
 
 ```text
 repo:crtaylor1997/Databricks-Infra:environment:uat
+repo:crtaylor1997/Databricks-Infra:environment:prd
 ```
 
 ## Cost Management
@@ -313,12 +360,13 @@ The following resources may be destroyed after testing:
 * Azure OIDC configuration for GitHub Actions
 * Reusable GitHub Actions Terraform workflow
 * DEV and UAT deployment workflow structure
+* PRD Databricks and networking roots with `main`-branch deployment jobs
 
 ## Next Steps
 
 * Complete GitHub Actions validation and plan workflows
 * Add approval protection to the UAT GitHub Environment
-* Add production Databricks and networking roots
+* Add required-reviewer protection to the PRD GitHub Environment
 * Refactor remaining workspace configuration into the reusable workspace module
 * Add Azure Firewall or NAT Gateway outbound routing
 * Add spoke route tables
