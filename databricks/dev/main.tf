@@ -27,6 +27,16 @@ module "spoke_network" {
   tags = module.tags.tags
 }
 
+module "storage" {
+  source = "../../modules/databricks_storage"
+
+  environment         = "dev"
+  location            = module.spoke_network.location
+  resource_group_name = module.spoke_network.resource_group_name
+
+  tags = module.tags.tags
+}
+
 resource "azurerm_databricks_workspace" "this" {
   name                        = "dbw-databricks-dev"
   resource_group_name         = module.spoke_network.resource_group_name

@@ -13,6 +13,7 @@ on:
       - "modules/databricks_spoke_network/**"
       - "modules/databricks_workspace/**"
       - "modules/tags/**"
+      - "modules/databricks_storage/**"
       - ".github/workflows/deploy-databricks.yml"
       - ".github/workflows/reusable-terraform.yml"
 
